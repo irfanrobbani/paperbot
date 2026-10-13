@@ -17,7 +17,7 @@ This is **Plan 1 of 3** (spec §11 build order). Plan 2 = Summarize (spec §6.2)
 - Python `>=3.11`; dependencies managed with `uv` (`uv sync`, `uv run pytest`).
 - Categories are exactly `visual`, `argumentation`, `other` (lowercase internally).
 - Notion is called over REST with `httpx`, header `Notion-Version: 2022-06-28` (no Notion SDK).
-- Notion properties: Paper (title), Author (rich_text), Year (number), Link (url), Category (select), Wiki (select: `Pending`/`Ingested`/`Failed`), Summarized (checkbox). Names matched case-insensitively.
+- Notion properties: Paper (title), Author (rich_text), Year (number), Link (url), Category (select **or multi_select**: the real database uses multi_select; the bot writes one value), Wiki (select: `Pending`/`Ingested`/`Failed`), Summarized (checkbox). Names and select options matched case-insensitively; a new option is written capitalized (`Other`).
 - Link is always stored as the canonical abstract URL: `https://arxiv.org/abs/<id>` (no version) or `https://aclanthology.org/<id>/`.
 - DeepSeek via `openai` SDK with `base_url="https://api.deepseek.com"`; model from `DEEPSEEK_CHAT_MODEL`, default `deepseek-chat`.
 - PDFs go to `<WIKI_REPO_PATH>/<category>/raw/<safe title>.pdf`; task 1 never runs git.
@@ -32,7 +32,7 @@ This is **Plan 1 of 3** (spec §11 build order). Plan 2 = Summarize (spec §6.2)
 2. The same paper pasted as abstract link, PDF link, or another arXiv version (`v1`/`v2`) — including old Notion rows that stored a PDF link — must be detected as "already added" → tests in Task 7 (`find_by_ref`) and Task 9.
 3. Titles containing Windows-illegal characters (`:` `?` `"` `/`), trailing dots, or reserved names must give a valid filename → test in Task 5.
 4. A PDF URL that returns an HTML page (rate limit / error page) must not be saved as a `.pdf`; the row is still created with a warning → tests in Task 5 and Task 9.
-5. The user's Notion database uses different capitalization (`paper`, option `Argumentation`) → must match case-insensitively, and an existing wrongly-typed `Wiki` column must never be overwritten → tests in Task 7.
+5. The user's Notion database uses different capitalization (`paper`, option `Argumentation`) and a multi_select Category with no `Other` option yet → must match case-insensitively, write `Other` in the existing style, and never overwrite an existing wrongly-typed `Wiki` column → tests in Task 7.
 
 ---
 
@@ -1258,9 +1258,9 @@ git commit -m "feat: DeepSeek client and paper classification" -m "Co-Authored-B
 - Produces:
   - `NotionPage(id: str, url: str)`.
   - `NotionStore(token: str, database_id: str, http: httpx.Client)` with:
-    - `connect() -> list[str]` — loads the schema, matches property names and select options case-insensitively, auto-creates **only missing** `Wiki`/`Summarized`, raises `NotionError` listing every remaining problem. Returns human-readable notes about created properties. Must be called before the other methods.
+    - `connect() -> list[str]` — loads the schema, matches property names and select options case-insensitively, accepts Category as `select` or `multi_select`, auto-creates **only missing** `Wiki`/`Summarized`, raises `NotionError` listing every remaining problem. Returns human-readable notes about created properties. Must be called before the other methods.
     - `find_by_ref(ref: PaperRef) -> NotionPage | None` — queries Link `contains ref.id`, then keeps only results whose Link resolves to the same `PaperRef` (handles PDF links, versions, and IDs that are prefixes of other IDs).
-    - `create_paper(meta: PaperMeta, category: str) -> NotionPage` — Wiki=`Pending`, Summarized=false.
+    - `create_paper(meta: PaperMeta, category: str) -> NotionPage` — Wiki=`Pending`, Summarized=false; Category written as a one-value multi_select or a select, matching the column type; a missing option is written capitalized.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1277,13 +1277,17 @@ from paperbot.notion_store import NOTION_VERSION, NotionStore
 
 DB_ID = "208048b5cde180678e68d1f18fff76f0"
 
+# Mirrors the real "Paper and Book" database: multi_select Category without an
+# "Other" option, plus an unnamed checkbox and a file column the bot ignores.
 # Review Focus 5: lowercase "paper", capitalized select options.
 BASE_PROPERTIES = {
     "paper": {"type": "title", "title": {}},
     "Author": {"type": "rich_text", "rich_text": {}},
     "Year": {"type": "number", "number": {}},
     "Link": {"type": "url", "url": {}},
-    "Category": {"type": "select", "select": {"options": [{"name": "Visual"}, {"name": "Argumentation"}, {"name": "Other"}]}},
+    "Category": {"type": "multi_select", "multi_select": {"options": [{"name": "Visual"}, {"name": "Argumentation"}]}},
+    "": {"type": "checkbox", "checkbox": {}},
+    "Files & media": {"type": "files", "files": {}},
     "Wiki": {"type": "select", "select": {"options": [{"name": "Pending"}, {"name": "Ingested"}, {"name": "Failed"}]}},
     "Summarized": {"type": "checkbox", "checkbox": {}},
 }
@@ -1359,11 +1363,13 @@ def test_connect_reports_missing_and_wrongly_typed_properties_without_overwritin
     del props["Year"]
     props["Link"] = {"type": "rich_text", "rich_text": {}}
     props["Wiki"] = {"type": "rich_text", "rich_text": {}}
+    props["Category"] = {"type": "rich_text", "rich_text": {}}
     api = FakeNotionAPI(properties=props)
     with pytest.raises(NotionError) as err:
         make_store(api).connect()
     message = str(err.value)
     assert "Year" in message and "Link" in message and "Wiki" in message
+    assert "Category" in message and "select or multi_select" in message
     assert all(method != "PATCH" for method, _, _ in api.requests)
 
 
@@ -1381,19 +1387,29 @@ def test_create_paper_uses_actual_names_and_option_capitalization():
     assert props["Author"]["rich_text"][0]["text"]["content"] == "Irfan Robbani"
     assert props["Year"] == {"number": 2024}
     assert props["Link"] == {"url": "https://aclanthology.org/2024.emnlp-main.1142/"}
-    assert props["Category"] == {"select": {"name": "Argumentation"}}
+    assert props["Category"] == {"multi_select": [{"name": "Argumentation"}]}
     assert props["Wiki"] == {"select": {"name": "Pending"}}
     assert props["Summarized"] == {"checkbox": False}
+    assert "" not in props and "Files & media" not in props
 
 
-def test_create_paper_with_new_category_option_keeps_lowercase_name():
+def test_create_paper_new_category_option_is_capitalized():
+    # "Other" does not exist yet in the real database.
+    api = FakeNotionAPI()
+    store = make_store(api)
+    store.connect()
+    store.create_paper(META, "other")
+    assert api.requests[-1][2]["properties"]["Category"] == {"multi_select": [{"name": "Other"}]}
+
+
+def test_create_paper_with_single_select_category():
     props = copy.deepcopy(BASE_PROPERTIES)
-    props["Category"]["select"]["options"] = []
+    props["Category"] = {"type": "select", "select": {"options": [{"name": "Visual"}]}}
     api = FakeNotionAPI(properties=props)
     store = make_store(api)
     store.connect()
     store.create_paper(META, "visual")
-    assert api.requests[-1][2]["properties"]["Category"] == {"select": {"name": "visual"}}
+    assert api.requests[-1][2]["properties"]["Category"] == {"select": {"name": "Visual"}}
 
 
 def test_find_by_ref_matches_pdf_link_and_ignores_prefix_ids():
@@ -1457,16 +1473,17 @@ from paperbot.sources.resolve import resolve_url
 NOTION_API = "https://api.notion.com/v1"
 NOTION_VERSION = "2022-06-28"
 
-# logical key -> (expected property name, expected type)
-SCHEMA: dict[str, tuple[str, str]] = {
-    "paper": ("Paper", "title"),
-    "author": ("Author", "rich_text"),
-    "year": ("Year", "number"),
-    "link": ("Link", "url"),
-    "category": ("Category", "select"),
-    "wiki": ("Wiki", "select"),
-    "summarized": ("Summarized", "checkbox"),
+# logical key -> (expected property name, accepted types)
+SCHEMA: dict[str, tuple[str, tuple[str, ...]]] = {
+    "paper": ("Paper", ("title",)),
+    "author": ("Author", ("rich_text",)),
+    "year": ("Year", ("number",)),
+    "link": ("Link", ("url",)),
+    "category": ("Category", ("select", "multi_select")),
+    "wiki": ("Wiki", ("select",)),
+    "summarized": ("Summarized", ("checkbox",)),
 }
+_CHOICE_TYPES = ("select", "multi_select")
 
 # Properties the bot may add itself if they do not exist at all.
 AUTO_CREATE: dict[str, dict] = {
@@ -1499,6 +1516,7 @@ class NotionStore:
             "Content-Type": "application/json",
         }
         self._names: dict[str, str] = {}
+        self._types: dict[str, str] = {}
         self._options: dict[str, dict[str, str]] = {}
 
     def _request(self, method: str, path: str, body: dict | None = None) -> dict:
@@ -1518,22 +1536,26 @@ class NotionStore:
         """Record actual property names; return (missing keys, problem messages)."""
         by_lower = {name.lower(): (name, prop) for name, prop in db.get("properties", {}).items()}
         self._names.clear()
+        self._types.clear()
         self._options.clear()
         missing: set[str] = set()
         problems: list[str] = []
-        for key, (name, prop_type) in SCHEMA.items():
+        for key, (name, types) in SCHEMA.items():
+            wanted = " or ".join(types)
             found = by_lower.get(name.lower())
             if found is None:
                 missing.add(key)
-                problems.append(f"- missing property '{name}' (type: {prop_type})")
+                problems.append(f"- missing property '{name}' (type: {wanted})")
                 continue
             actual, prop = found
-            if prop.get("type") != prop_type:
-                problems.append(f"- property '{actual}' must be {prop_type}, but is {prop.get('type')}")
+            prop_type = prop.get("type")
+            if prop_type not in types:
+                problems.append(f"- property '{actual}' must be {wanted}, but is {prop_type}")
                 continue
             self._names[key] = actual
-            if prop_type == "select":
-                options = prop.get("select", {}).get("options", [])
+            self._types[key] = prop_type
+            if prop_type in _CHOICE_TYPES:
+                options = prop.get(prop_type, {}).get("options", [])
                 self._options[key] = {o["name"].lower(): o["name"] for o in options}
         return missing, problems
 
@@ -1556,8 +1578,12 @@ class NotionStore:
             raise NotionError("NotionStore.connect() must be called first")
         return self._names[key]
 
-    def _option(self, key: str, value: str) -> str:
-        return self._options.get(key, {}).get(value.lower(), value)
+    def _choice(self, key: str, value: str) -> dict:
+        """select/multi_select value, reusing an existing option's spelling or capitalizing a new one."""
+        name = self._options.get(key, {}).get(value.lower(), value[:1].upper() + value[1:])
+        if self._types[key] == "multi_select":
+            return {"multi_select": [{"name": name}]}
+        return {"select": {"name": name}}
 
     def find_by_ref(self, ref: PaperRef) -> NotionPage | None:
         link_name = self._name("link")
@@ -1579,8 +1605,8 @@ class NotionStore:
             self._name("author"): {"rich_text": [{"text": {"content": meta.first_author[:2000]}}]},
             self._name("year"): {"number": meta.year},
             self._name("link"): {"url": meta.ref.abs_url},
-            self._name("category"): {"select": {"name": self._option("category", category)}},
-            self._name("wiki"): {"select": {"name": self._option("wiki", "Pending")}},
+            self._name("category"): self._choice("category", category),
+            self._name("wiki"): self._choice("wiki", "Pending"),
             self._name("summarized"): {"checkbox": False},
         }
         created = self._request("POST", "/pages", {"parent": {"database_id": self._db}, "properties": properties})
@@ -1590,7 +1616,7 @@ class NotionStore:
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `uv run pytest tests/test_notion_store.py -v`
-Expected: 10 passed
+Expected: 11 passed
 
 - [ ] **Step 5: Commit**
 
@@ -2280,7 +2306,7 @@ Category, Wiki = Pending) and saves the PDF to `<WIKI_REPO_PATH>/<category>/raw/
 3. **Notion**
    - https://www.notion.so/my-integrations → New integration (internal) → copy the secret (`NOTION_TOKEN`).
    - Open the paper database → `•••` → Connections → add the integration.
-   - Columns needed: Paper (title), Author (text), Year (number), Link (URL), Category (select).
+   - Columns needed: Paper (title), Author (text), Year (number), Link (URL), Category (select or multi-select).
      The bot adds Wiki and Summarized itself if they are missing.
 4. **DeepSeek**: create an API key at https://platform.deepseek.com (`DEEPSEEK_API_KEY`).
 5. Copy `.env.example` to `.env` and fill it in.

@@ -42,7 +42,7 @@ Success criteria:
 - **argumentation** — logical reasoning, logical structure, argument mining, argumentation schemes, fallacy classification, fallacious argument understanding, argument parsing, and similar.
 - **other** — anything related to neither.
 
-Cross-cutting papers (e.g. meme fallacies) are assigned the single category the LLM judges dominant; the user can change it in Notion.
+Cross-cutting papers (e.g. meme fallacies) are assigned the single category the LLM judges dominant; the user can add a second category tag in Notion, and task 2 then ingests the paper into the wiki of each tag (detailed in Plan 3).
 
 ## 4. Architecture
 
@@ -87,7 +87,7 @@ A message arriving while a job runs gets a ⏳ reaction until its turn.
 
 ## 5. Notion schema
 
-Existing database: `208048b5cde180678e68d1f18fff76f0`.
+Existing database: "Paper and Book", `208048b5cde180678e68d1f18fff76f0` (single data source). Its other columns (an unnamed checkbox, "Files & media") are left untouched.
 
 | Property | Type | Values / notes |
 |---|---|---|
@@ -95,7 +95,7 @@ Existing database: `208048b5cde180678e68d1f18fff76f0`.
 | Author | rich_text | First author |
 | Year | number | Publication year |
 | Link | url | Canonical abstract page URL |
-| Category | select | `visual`, `argumentation`, `other` |
+| Category | multi_select (select also accepted) | Options `Visual`, `Argumentation`, `Other` (`Other` created on first use). The bot writes one value; the user may add a second by hand. |
 | Wiki | select | `Pending`, `Ingested`, `Failed` (new) |
 | Summarized | checkbox | (new) |
 
