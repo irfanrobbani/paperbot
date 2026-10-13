@@ -62,3 +62,18 @@ def test_find_urls_unwraps_discord_and_markdown_links():
 
 def test_find_urls_none():
     assert find_urls("update the visual wiki") == []
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "**https://arxiv.org/abs/2411.12498**",
+        "`https://arxiv.org/abs/2411.12498`",
+        "||https://arxiv.org/abs/2411.12498||",
+        '"https://arxiv.org/abs/2411.12498"',
+        "_https://arxiv.org/abs/2411.12498_",
+        "'https://arxiv.org/abs/2411.12498'",
+    ],
+)
+def test_find_urls_strips_discord_formatting(text):
+    assert find_urls(text) == ["https://arxiv.org/abs/2411.12498"]

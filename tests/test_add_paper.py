@@ -137,3 +137,22 @@ def test_one_failure_does_not_stop_the_others(tmp_path):
     ])
     assert [o.ok for o in outcomes] == [False, True]
     assert len(notion.created) == 1
+
+
+def test_unexpected_error_affects_only_that_link(tmp_path):
+    class BrokenOnce(FakeNotion):
+        def create_paper(self, meta, category):
+            if not self.created and meta.ref.source == "arxiv":
+                self.created.append((meta, category))
+                raise ValueError("Notion returned non-JSON")
+            return super().create_paper(meta, category)
+
+    alt = PaperMeta(PaperRef("arxiv", "2411.12498"), "ALT", ("Terufumi Morishita",), 2024, "")
+    notion = BrokenOnce()
+    task = make_task(tmp_path, notion=notion, fetch=lambda ref, http: alt if ref.source == "arxiv" else FLEE)
+    outcomes = task.run_many([
+        "https://arxiv.org/abs/2411.12498",
+        "https://aclanthology.org/2024.emnlp-main.1142/",
+    ])
+    assert [o.ok for o in outcomes] == [False, True]
+    assert "Unexpected error" in outcomes[0].line

@@ -30,7 +30,14 @@ class AddPaperTask:
         self.download = download
 
     def run_many(self, urls: Iterable[str]) -> list[AddOutcome]:
-        return [self.run(url) for url in dict.fromkeys(urls)]
+        outcomes = []
+        for url in dict.fromkeys(urls):
+            try:
+                outcomes.append(self.run(url))
+            except Exception:
+                log.exception("Unexpected error adding %s", url)
+                outcomes.append(AddOutcome(False, f"❌ <{url}>: Unexpected error. See logs/paperbot.log"))
+        return outcomes
 
     def run(self, url: str) -> AddOutcome:
         try:

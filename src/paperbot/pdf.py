@@ -29,8 +29,11 @@ def download_pdf(url: str, dest: Path, http: httpx.Client) -> Path:
         raise PdfDownloadError(f"PDF download failed (HTTP {response.status_code})")
     if not response.content.startswith(b"%PDF"):
         raise PdfDownloadError("The PDF link did not return a PDF")
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    partial = dest.with_suffix(".part")
-    partial.write_bytes(response.content)
-    partial.replace(dest)
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        partial = dest.with_suffix(".part")
+        partial.write_bytes(response.content)
+        partial.replace(dest)
+    except OSError as e:
+        raise PdfDownloadError(f"Could not save PDF to {dest.parent}: {e}") from e
     return dest

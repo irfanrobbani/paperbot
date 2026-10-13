@@ -71,3 +71,10 @@ def test_download_pdf_skips_existing_file(tmp_path):
         raise AssertionError("should not download again")
 
     assert download_pdf("https://x/y.pdf", dest, _client(handler)) == dest
+
+
+def test_download_pdf_disk_error_becomes_pdf_download_error(tmp_path):
+    blocker = tmp_path / "raw"
+    blocker.write_text("a file where the folder should be")
+    with pytest.raises(PdfDownloadError, match="Could not save PDF"):
+        download_pdf("https://x/y.pdf", blocker / "P.pdf", _client(lambda r: httpx.Response(200, content=PDF_BYTES)))

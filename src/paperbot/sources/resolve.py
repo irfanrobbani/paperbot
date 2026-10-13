@@ -3,7 +3,8 @@ from urllib.parse import urlparse
 
 from paperbot.models import PaperRef, UnsupportedURL
 
-_URL = re.compile(r"https?://[^\s<>()\[\]]+")
+# Stops at Discord/Markdown wrappers: <>, ()[], `, ", ', |, *.
+_URL = re.compile(r"https?://[^\s<>()\[\]`\"'|*]+")
 
 _ARXIV_NEW = r"\d{4}\.\d{4,5}"
 _ARXIV_OLD = r"[a-z\-]+(?:\.[A-Z]{2})?/\d{7}"
@@ -17,7 +18,7 @@ _ACL_PATH = re.compile(rf"^/({_ACL_ID})(?:\.pdf|/)?$")
 
 def find_urls(text: str) -> list[str]:
     """All http(s) URLs in a Discord message, without wrapping punctuation."""
-    return [url.rstrip(".,;:!?") for url in _URL.findall(text)]
+    return [url.rstrip(".,;:!?_~") for url in _URL.findall(text)]
 
 
 def resolve_url(url: str) -> PaperRef:

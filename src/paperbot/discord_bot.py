@@ -49,7 +49,8 @@ class PaperBot(discord.Client):
                     await message.reply(chunk, mention_author=False, suppress_embeds=True)
                 await message.add_reaction("✅" if reply.ok else "❌")
                 await message.remove_reaction(WAITING, self.user)
-            except discord.DiscordException:
+            except Exception:
+                # Network errors here must not kill the worker, or every later job would hang.
                 log.exception("Could not reply in Discord")
             finally:
                 self._jobs.task_done()
