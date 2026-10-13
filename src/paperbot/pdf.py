@@ -5,7 +5,7 @@ import httpx
 
 from paperbot.models import PdfDownloadError
 
-_ILLEGAL = re.compile(r'[<>:"/\|?*\x00-\x1f]')
+_ILLEGAL = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 _RESERVED = {"CON", "PRN", "AUX", "NUL"} | {f"COM{i}" for i in range(1, 10)} | {f"LPT{i}" for i in range(1, 10)}
 
 

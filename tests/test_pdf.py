@@ -12,7 +12,7 @@ PDF_BYTES = b"%PDF-1.7\n fake pdf body"
     "title,expected",
     [
         ("Flee the Flaw: Annotating the Underlying Logic", "Flee the Flaw Annotating the Underlying Logic.pdf"),
-        ('What "Logic"? A/B <test> | x*y\z', "What Logic A B test x y z.pdf"),
+        ('What "Logic"? A/B <test> | x*y\\z',"What Logic A B test x y z.pdf"),
         ("Results so far...", "Results so far.pdf"),
         ("Line one\nline two\ttab", "Line one line two tab.pdf"),
         ("", "paper.pdf"),
