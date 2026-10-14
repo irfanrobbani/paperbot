@@ -77,7 +77,7 @@ A message arriving while a job runs gets a ⏳ reaction until its turn.
 |---|---|---|
 | `discord_bot` | Listen in `#papers`, parse messages into jobs, reactions, replies, live progress message (edits throttled to ≥2 s). | `queue`, `commands` |
 | `commands` | Classify a message: links (→ Add), `update the <cat> wiki` (→ Update), `summarize <url>` (→ Summarize), else ignore. Fuzzy-matches category names (e.g. "argumenation"). | — |
-| `sources` | Resolve URL → canonical `PaperRef{source, id}`; fetch metadata (`title, authors, year, abs_url, pdf_url`). arXiv via `arxiv` package; ACL via `<id>.bib`. | `httpx`, `arxiv` |
+| `sources` | Resolve URL → canonical `PaperRef{source, id}`; fetch metadata (`title, authors, year, abs_url, pdf_url`). arXiv via the Atom API (`export.arxiv.org/api/query`); ACL via the abstract page's `citation_*` meta tags and abstract block (the `.bib` lacks abstracts and LaTeX-escapes names). | `httpx` |
 | `pdf` | Download PDF; extract text with `pymupdf`. | `httpx`, `pymupdf` |
 | `llm` | Thin DeepSeek client (OpenAI SDK, `base_url=https://api.deepseek.com`); classify; summarize; agent loop with tool calls and reasoning stream. | `openai` |
 | `notion_store` | Schema check, find-by-link, create row, query Pending by category, update properties, replace page body. | `notion-client` |

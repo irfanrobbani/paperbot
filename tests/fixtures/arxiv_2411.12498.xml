@@ -1,0 +1,28 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxiv.org/api/48ySV3d9QMmJH9/1IThSDydokeM</id>
+  <title>arXiv Query: search_query=&amp;id_list=2411.12498&amp;start=0&amp;max_results=1</title>
+  <opensearch:totalResults>1</opensearch:totalResults>
+  <entry>
+    <id>http://arxiv.org/abs/2411.12498v2</id>
+    <title>Enhancing Reasoning Capabilities of LLMs via
+      Principled Synthetic Logic Corpus</title>
+    <updated>2024-12-23T10:36:38Z</updated>
+    <summary>Large language models (LLMs) are capable of solving a wide range of tasks,
+yet they have struggled with reasoning. To address this, we propose Additional
+Logic Training (ALT).</summary>
+    <published>2024-11-19T13:31:53Z</published>
+    <author>
+      <name>Terufumi Morishita</name>
+    </author>
+    <author>
+      <name>Gaku Morio</name>
+    </author>
+    <author>
+      <name>Atsuki Yamaguchi</name>
+    </author>
+    <author>
+      <name>Yasuhiro Sogawa</name>
+    </author>
+  </entry>
+</feed>
